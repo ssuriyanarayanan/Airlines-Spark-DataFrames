@@ -1,0 +1,31 @@
+Problems :
+
+1.find out the most frequent TailNumber which is getting by destination in maximum;
+
+2.Find out the cancelled flight details for the last quarter.
+
+3.Find out the average weather delays for a particular flight per month.?
+
+4.Inspite of NASDelay,SecurityDelay,LateAircraftDelay,weatherDelay,CarrierDelay who was reached on time.?
+
+5.Monthwise total distance travelled by each flight number.?
+
+6.Monthwise how many get diverted (origin to destination).?
+
+7.Week and monthwise num of trips in all the flights.?
+
+8.which flights covered maximum origin and destination by monthwise.?
+
+9.average monthwise arrival delay.?
+
+10.average monthwise departure delays.?
+
+11.Which carrier performs better?
+
+12.When is the best time of day/day of week/time of year to fly to minimise delays?
+
+13.Can you detect cascading failures as delays in one airport create delays in others? Are there critical links in the system?
+
+14.Monthwise percentage of cancellation reason .?
+
+15.Do older planes suffer more delays?
