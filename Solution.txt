@@ -1,0 +1,137 @@
+
+/*Find out the cancelled flight details for the last quarter.             
+            
+       val SelectColumnDF_2 = InputDF.select($"Month",$"FlighNum",$"TailNum",$"Cancelled")
+       val CancelledFlight = SelectColumnDF_2.filter("Month IN (10,11,12) AND Cancelled = 1")
+       val ResultDF_2T = CancelledFlight.groupBy($"Month",$"FlightNum").count()
+       val ResultDF_2 = ResultDF_2T.sort($"count".desc)
+       
+      conf = SparkConf()
+      spark.setConf("spark.hadoop.mapred.output.compress", "true")
+      spark.setConf("spark.hadoop.mapred.output.compression.codec", "org.apache.hadoop.io.compress.GzipCodec")
+      spark.setConf("spark.hadoop.mapred.output.compression.type", "BLOCK") 
+      
+      val DFtoJSON = self.ResultDF_2.toJSON()
+      DFtoJSON.saveAsTextFile("file:///home/workspace/work/datasets/csv/output/CancelledFligt.json",compressionCodecClass="org.apache.hadoop.io.compress.GzipCodec")
+//*-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-* 
+//Find out the average weather delays for a particular flight per month.?
+
+               val SelectColumnDF_3 = InputDF.select($"Month",$"FlightNum",$"TailNum",$"WeatherDelay")
+                                      .filter($"WeatherDelay" !== "NA")
+                                      .groupBy("Month","TailNum")
+                                      .agg(round(avg($"WeatherDelay"),4).alias("AvgWeatherDelay"))
+        SelectColumnDF_3.repartition(1).write.option("header", "true")
+                   .format("com.databricks.spark.csv").option("header","true")
+                   .save("file:///home/workspace/work/datasets/csv/output/WeatherDelay.csv")                           
+////*-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-* 
+////Inspite of NASDelay,SecurityDelay,LateAircraftDelay,weatherDelay,CarrierDelay who was reached on time.?
+        val SelectColumnDF_4 = InputDF.select($"Month",$"FlightNum",$"TailNum",$"CarrierDelay",$"WeatherDelay",$"NASDelay",$"SecurityDelay",$"LateAircraftDelay")
+        val FilterDF_4 = SelectColumnDF_4.filter($"CarrierDelay" === "NA" && $"WeatherDelay" === "NA" && $"NASDelay" === "NA" && $"SecurityDelay" === "NA" &&                             
+                                                                $"LateAircraftDelay" === "NA" ).select("Month","FlightNum","TailNum")
+                                                .groupBy($"Month").count()
+
+        FilterDF_4.repartition(1).write.option("header", "true")
+                   .format("com.databricks.spark.csv").option("header","true")
+                   .save("file:///home/workspace/work/datasets/csv/output/OnTimeAirline.csv")
+//*-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-* 
+//Monthwise total distance travelled by each flight number.
+        val SelectColumnDF_5 = InputDF.select($"Month",$"FlightNum",$"TailNum",$"Distance")
+        val ResultDF_5 = SelectColumnDF_5.groupBy("Month","FlightNum").agg(sum($"Distance")).withColumnRenamed("sum(Distance)","DistanceTravelled").sort(desc                                
+                                                                                                ("DistanceTravelled"))
+                val Result_DF_5 = ResultDF_5.repartition(1)
+                Result_DF_5.write.option("header", "true")
+                   .format("com.databricks.spark.csv").option("header","true")
+                   .save("file:///home/workspace/work/datasets/csv/output/Dist_Travelled.csv")
+//*-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-*
+//Monthwise how many get diverted (origin to destination)
+        val SelectColumnDF_6 = InputDF.select("Month","TailNum","Origin","Dest","Diverted")
+        val FilterColumn_6 = SelectColumnDF_6.filter($"Diverted" === 1).groupBy("Month","TailNum","Origin","Dest").count.withColumnRenamed
+              ("count","CountOFDivertedFlights")
+        val ResultDF_6 = FilterColumn_6.sort($"CountOFDivertedFlights".desc)
+        val Result_DF_6 = ResultDF_6.repartition(1)
+                Result_DF_6.write.option("header", "true").format("com.databricks.spark.csv").option("header","true")
+                   .save("file:///home/workspace/work/datasets/csv/output/DivertedFlight.csv")
+                   
+//*-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-*                   
+//Week and monthwise num of trips in all the flights
+        val SelectColumnDF_7 = InputDF.select($"Month",$"DayofMonth",$"TailNum",$"Origin",$"Dest")             
+        val ResultDF_7T = SelectColumnDF_7.withColumn("Weekly", when(col("DayOFMonth").between(1,7),1).
+                                                                when(col("DayOFMonth").between(8,14),2).
+                                                                when(col("DayOFMonth").between(15,21),3).
+                                                                when(col("DayOFMonth").between(22,31),4)
+                                                                .otherwise("Others"))
+                                          
+                val MonthlyTrip = ResultDF_7T.select("Month","TailNum","Origin","Dest").groupBy("Month","TailNum","Origin","Dest").count.withColumnRenamed
+("count","MonthlyTrips")
+                val WeeklyTrip = ResultDF_7T.select("Week","TailNum","Origin","Dest").groupBy("Week","TailNum","Origin","Dest").count.withColumnRenamed("count","WeeklyTrips")
+                val JoinTrips = MonthlyTrip.as('a).join(WeeklyTrip.as('b), $"a.TailNum" === "b.TailNum").select                   
+("a.Month","b.Week","a.TailNum","a.Origin","a.Dest","a.Monthlytrips","b.WeeklyTrips").distinct
+                
+        val Result_DF_save = JoinTrips.repartition(1)
+                Result_DF_save.write.option("header", "true")
+                   .format("com.databricks.spark.csv").option("header","true")
+                   .save("file:///home/workspace/work/datasets/csv/output/NoOfTrips.csv")
+//*-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-*                   
+//which flights covered maximum origin and destination by monthwise
+        val SelectColumnDF_8 = InputDF.select($"Month",$"FlightNum",$"TailNum",$"Origin",$"Dest")
+        SelectColumnDF_8.createOrReplaceTempView("MaxDist")
+        val ResultSQL_8 = spark.sql( """
+        
+ 
+                  import org.apache.spark.sql.expressions.Window
+                  val partitionedData = Window.partitionBy("Month","TailNum","Origin","Dest")
+                  val ResultSet = SelectColumnDF_8.withColumn("CountOFTravel", count($"TailNum") over partitionedData)
+                  val writeData = ResultSet.repartition(1)
+          writeData.write.option("header", "true")
+                   .format("com.databricks.spark.csv").option("header","true")
+                   .save("file:///home/workspace/work/datasets/csv/output/MaxDist.csv")  
+ 
+ 
+//*-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-*
+//average monthwise arrival delay
+                   
+          val SelectColumnDF_9 = InputDF.select($"Month",$"FlightNum",$"TailNum",$"ArrDelay",$"Dest")
+          val ResultDF_9 = SelectColumnDF_9.filter("TailNum IS NOT NULL").groupBy("Month","FlightNum","TailNum","Dest").agg(round(avg                                                                
+             ("ArrDelay"),3)).withColumnRenamed("round(avg(ArrDelay), 3)","Avg_Arr_Delay")
+          
+          val RET9 = Result_9DF.repartition(1)
+                  RET9.write.option("header", "true")
+              .format("com.databricks.spark.csv").option("header","true")
+              .save("file:///home/workspace/work/datasets/csv/output/ArrvialDelay.csv")
+          
+//*-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-*
+//average monthwise departure delays.          
+          
+          val SelectColumnDF_10 = InputDF.select($"Month",$"FlightNum",$"TailNum",$"DepDelay",$"Dest")
+                          
+                  val ResultDF_10 = SelectColumnDF_9.filter("TailNum IS NOT NULL").groupBy("Month","FlightNum","TailNum","Dest").agg(round(avg                                                                
+                                                ("DepDelay"),3)).withColumnRenamed("round(avg(DepDelay), 3)","Avg_Dep_Delay")      
+                  
+                  val RET10 = ResultDF_10.repartition(1)
+          RET10.repartition(1).write.option("header", "true")
+                   .format("com.databricks.spark.csv").option("header","true")
+                   .save("file:///home/workspace/work/datasets/csv/output/DepDelay.csv")
+//*-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-**-*-*-*                   
+//When is the best time of day/day of week/time of year to fly to minimise delays
+                   
+          val SelectColumnDF_12 = InputDF.select($"Month",$"DayOfWeek",$"DepTime",$"Origin",
+                                                 $"CarrierDelay",$"WeatherDelay",$"NASDelay",$"SecurityDelay",$"LateAircraftDelay")
+          val FilteredData = SelectColumnDF_12.filter($"CarrierDelay"  === "NA" && 
+                                                      $"WeatherDelay"  === "NA" && 
+                                                      $"NASDelay"      === "NA" && 
+                                                      $"SecurityDelay" === "NA" && 
+                                                      $"LateAircraftDelay" === "NA")
+                                              .select($"Month",$"DayOfWeek",$"DepTime",$"Origin")
+          val TimeScheData = FilteredData.withColumn("Departure", when(col("DepTime").between(0001,0600),"NTEM").                                    
+                                                                  when(col("DepTime").between(0601,1200),"MGPL"). 
+                                                                  when(col("DepTime").between(1201,1800),"PLEV").  
+                                                                  when(col("DepTime").between(1801,2400),"EVNT"))
+                                         .select($"Month",$"DayOfWeek",$"Origin",$"Departure)
+          val ResultDF_12 = TimeScheData.groupBy($"Month",$"DayOfWeek",$"Origin").count()
+          val FINALDF_12 = ResultDF_12.sort($"count".desc)
+          
+          FINALDF_12.repartition(1).write.option("header", "true")
+                   .format("com.databricks.spark.csv").option("header","true")
+                   .save("file:///home/workspace/work/datasets/csv/output/BestTime.csv")          
+          
+ 
